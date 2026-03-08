@@ -1,0 +1,5 @@
+{
+  "name": "SlitherBalls",
+  "description": "A real-time multiplayer Slither.io clone where you control a chain of balls. Eat to grow, and don't hit other players!",
+  "requestFramePermissions": []
+}
