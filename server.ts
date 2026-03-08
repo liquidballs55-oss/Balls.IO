@@ -308,14 +308,24 @@ function updateBotAI(bot: Player) {
     while (diff > Math.PI) diff -= Math.PI * 2;
     
     // Skill affects turning speed
-    const turnSpeed = 0.1 + skill * 0.3;
+    const turnSpeed = 0.08 + skill * 0.15; // Reduced turn speed to prevent jitter/spinning
     bot.angle += diff * turnSpeed;
   }
 
-  if (!isHunting || bot.segments.length <= 15) {
-    if (!isAvoiding || Math.random() > 0.1) {
+  // Decisive boosting: only boost if we are actually facing the target
+  if (isHunting && bot.segments.length > 15) {
+    const targetAngle = Math.atan2(targetVector.y, targetVector.x);
+    let diff = targetAngle - bot.angle;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    
+    if (Math.abs(diff) < 0.5 && Math.random() < (0.1 + skill * 0.9)) {
+      bot.isBoosting = true;
+    } else {
       bot.isBoosting = false;
     }
+  } else if (!isAvoiding) {
+    bot.isBoosting = false;
   }
 }
 
@@ -505,18 +515,23 @@ async function startServer() {
         const hdistSq = hdx * hdx + hdy * hdy;
         
         // If too far from other player's head and they are short, skip detailed check
-        if (hdistSq > 1000 * 1000 && other.segments.length < 50 && other.id !== player.id) return;
+        if (hdistSq > 1500 * 1500 && other.segments.length < 50 && other.id !== player.id) return;
 
         for (let idx = 0; idx < other.segments.length; idx++) {
-          // Self-collision: skip first few segments to avoid immediate collision with neck
-          if (other.id === player.id && idx < 10) continue;
+          // Self-collision: skip more segments to avoid immediate collision with neck/body
+          // The buffer scales with player size to prevent "dying of nothing"
+          const selfCollisionBuffer = 15 + Math.floor(playerRadius / 2);
+          if (other.id === player.id && idx < selfCollisionBuffer) continue;
 
           const seg = other.segments[idx];
           const dx = newHead.x - seg.x;
           const dy = newHead.y - seg.y;
           const distSq = dx * dx + dy * dy;
           
-          if (distSq < collisionDistSq) {
+          // Slightly tighter collision for self to prevent accidental deaths
+          const finalCollisionDistSq = other.id === player.id ? collisionDistSq * 0.7 : collisionDistSq;
+
+          if (distSq < finalCollisionDistSq) {
             player.segments.forEach((s, sIdx) => {
               if (sIdx % 2 === 0) {
                 spawnFood(s.x, s.y, player.color, 10, io);
